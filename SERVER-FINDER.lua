@@ -1,305 +1,470 @@
-if not game:IsLoaded() then game.Loaded:Wait() end
+if not game:IsLoaded() then 
+    game.Loaded:Wait() 
+end
 
+-- Constants
+local GAME_ID = 126884695634066
+local TARGET_VERSION = 1233
+local BLOODMOON_POSITION = Vector3.new(-83.157, 0.3, -11.295)
+local HOP_COOLDOWN = 5
+local NOTIFICATION_DURATION = 6
 
-local function prompt(title, text)
-    local ScreenGui = Instance.new("ScreenGui")
-    local Frame = Instance.new("Frame")
-    local UIGradient = Instance.new("UIGradient")
-    local UICorner = Instance.new("UICorner")
-    local Title = Instance.new("TextLabel")
-    local Divider = Instance.new("Frame")
-    local Message = Instance.new("TextLabel")
-    local ButtonHolder = Instance.new("Frame")
-    local YesButton = Instance.new("TextButton")
-    local YesCorner = Instance.new("UICorner")
-    local NoButton = Instance.new("TextButton")
-    local NoCorner = Instance.new("UICorner")
-    local Glow = Instance.new("ImageLabel")
+-- Services
+local HttpService = game:GetService("HttpService")
+local TeleportService = game:GetService("TeleportService")
+local RunService = game:GetService("RunService")
+local Players = game:GetService("Players")
 
-    ScreenGui.Parent = game:GetService("CoreGui") or game.Players.LocalPlayer:WaitForChild("PlayerGui")
-    ScreenGui.Name = "BloodmoonPrompt"
-    ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-    ScreenGui.ResetOnSpawn = false
+-- Global variables
+local lastHopAttempt = 0
+local notificationSystem = nil
+local isWaitingForBloodMoon = false
 
-    Frame.Parent = ScreenGui
-    Frame.AnchorPoint = Vector2.new(0.5, 0.5)
-    Frame.BackgroundColor3 = Color3.fromRGB(20, 20, 30)
-    Frame.BorderSizePixel = 0
-    Frame.Position = UDim2.new(0.5, 0, 0.5, 0)
-    Frame.Size = UDim2.new(0, 350, 0, 220)
-    Frame.ZIndex = 2
+-- Initialize notification system
+local function initializeNotifications()
+    if notificationSystem then return end
+    
+    local success, result = pcall(function()
+        return loadstring(game:HttpGet("https://paste.ee/r/E9tFZ/0"))()
+    end)
+    
+    if success then
+        notificationSystem = result
+    else
+        warn("Failed to load notification system:", result)
+    end
+end
 
-    UIGradient.Color = ColorSequence.new({
+-- Notification function
+local function notify(title, content)
+    if notificationSystem then
+        notificationSystem:MakeNotification({
+            Name = title,
+            Content = content,
+            Image = "rbxassetid://4483345998",
+            Time = NOTIFICATION_DURATION
+        })
+    else
+        print(title .. ": " .. content)
+    end
+end
+
+-- Enhanced prompt function with better error handling
+local function createPrompt(title, text)
+    local screenGui = Instance.new("ScreenGui")
+    local frame = Instance.new("Frame")
+    local uiGradient = Instance.new("UIGradient")
+    local uiCorner = Instance.new("UICorner")
+    local titleLabel = Instance.new("TextLabel")
+    local divider = Instance.new("Frame")
+    local messageLabel = Instance.new("TextLabel")
+    local buttonHolder = Instance.new("Frame")
+    local yesButton = Instance.new("TextButton")
+    local yesCorner = Instance.new("UICorner")
+    local noButton = Instance.new("TextButton")
+    local noCorner = Instance.new("UICorner")
+    local closeButton = Instance.new("TextButton")
+    local closeCorner = Instance.new("UICorner")
+    local glow = Instance.new("ImageLabel")
+
+    -- Setup ScreenGui
+    screenGui.Name = "BloodmoonPrompt"
+    screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+    screenGui.ResetOnSpawn = false
+    
+    local success, parent = pcall(function()
+        return game:GetService("CoreGui")
+    end)
+    
+    if not success then
+        parent = Players.LocalPlayer:WaitForChild("PlayerGui")
+    end
+    
+    screenGui.Parent = parent
+
+    -- Setup Frame with improved styling
+    frame.Parent = screenGui
+    frame.AnchorPoint = Vector2.new(0.5, 0.5)
+    frame.BackgroundColor3 = Color3.fromRGB(20, 20, 30)
+    frame.BorderSizePixel = 0
+    frame.Position = UDim2.new(0.5, 0, 0.5, 0)
+    frame.Size = UDim2.new(0, 380, 0, 240)
+    frame.ZIndex = 2
+
+    -- Gradient
+    uiGradient.Color = ColorSequence.new({
         ColorSequenceKeypoint.new(0, Color3.fromRGB(40, 40, 60)),
         ColorSequenceKeypoint.new(1, Color3.fromRGB(20, 20, 30))
     })
-    UIGradient.Rotation = 90
-    UIGradient.Parent = Frame
+    uiGradient.Rotation = 90
+    uiGradient.Parent = frame
 
-    UICorner.CornerRadius = UDim.new(0, 12)
-    UICorner.Parent = Frame
+    uiCorner.CornerRadius = UDim.new(0, 12)
+    uiCorner.Parent = frame
 
-    Title.Name = "Title"
-    Title.Parent = Frame
-    Title.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-    Title.BackgroundTransparency = 1
-    Title.Position = UDim2.new(0, 0, 0, 15)
-    Title.Size = UDim2.new(1, 0, 0, 30)
-    Title.Font = Enum.Font.GothamBold
-    Title.Text = title
-    Title.TextColor3 = Color3.fromRGB(220, 90, 90)
-    Title.TextSize = 20
-    Title.TextTransparency = 0.1
+    -- Title
+    titleLabel.Name = "Title"
+    titleLabel.Parent = frame
+    titleLabel.BackgroundTransparency = 1
+    titleLabel.Position = UDim2.new(0, 0, 0, 15)
+    titleLabel.Size = UDim2.new(0.85, 0, 0, 30)
+    titleLabel.Font = Enum.Font.GothamBold
+    titleLabel.Text = title
+    titleLabel.TextColor3 = Color3.fromRGB(220, 90, 90)
+    titleLabel.TextSize = 18
+    titleLabel.TextTransparency = 0.1
+    titleLabel.TextXAlignment = Enum.TextXAlignment.Center
 
-    Divider.Name = "Divider"
-    Divider.Parent = Frame
-    Divider.BackgroundColor3 = Color3.fromRGB(220, 90, 90)
-    Divider.BorderSizePixel = 0
-    Divider.Position = UDim2.new(0.1, 0, 0.2, 0)
-    Divider.Size = UDim2.new(0.8, 0, 0, 1)
-    Divider.ZIndex = 3
+    -- Close button
+    closeButton.Name = "CloseButton"
+    closeButton.Parent = frame
+    closeButton.BackgroundColor3 = Color3.fromRGB(90, 90, 110)
+    closeButton.Position = UDim2.new(0.88, 0, 0.02, 0)
+    closeButton.Size = UDim2.new(0.1, 0, 0, 25)
+    closeButton.Font = Enum.Font.GothamBold
+    closeButton.Text = "✕"
+    closeButton.TextColor3 = Color3.fromRGB(220, 90, 90)
+    closeButton.TextSize = 14
 
-    Message.Name = "Message"
-    Message.Parent = Frame
-    Message.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-    Message.BackgroundTransparency = 1
-    Message.Position = UDim2.new(0.1, 0, 0.25, 0)
-    Message.Size = UDim2.new(0.8, 0, 0.4, 0)
-    Message.Font = Enum.Font.Gotham
-    Message.Text = text
-    Message.TextColor3 = Color3.fromRGB(200, 200, 200)
-    Message.TextSize = 14
-    Message.TextWrapped = true
-    Message.TextYAlignment = Enum.TextYAlignment.Top
+    closeCorner.CornerRadius = UDim.new(0, 6)
+    closeCorner.Parent = closeButton
 
-    ButtonHolder.Name = "ButtonHolder"
-    ButtonHolder.Parent = Frame
-    ButtonHolder.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-    ButtonHolder.BackgroundTransparency = 1
-    ButtonHolder.Position = UDim2.new(0.1, 0, 0.7, 0)
-    ButtonHolder.Size = UDim2.new(0.8, 0, 0, 45)
+    -- Divider
+    divider.Name = "Divider"
+    divider.Parent = frame
+    divider.BackgroundColor3 = Color3.fromRGB(220, 90, 90)
+    divider.BorderSizePixel = 0
+    divider.Position = UDim2.new(0.1, 0, 0.2, 0)
+    divider.Size = UDim2.new(0.8, 0, 0, 1)
+    divider.ZIndex = 3
 
-    YesButton.Name = "YesButton"
-    YesButton.Parent = ButtonHolder
-    YesButton.BackgroundColor3 = Color3.fromRGB(60, 180, 60)
-    YesButton.Position = UDim2.new(0, 0, 0, 0)
-    YesButton.Size = UDim2.new(0.45, 0, 1, 0)
-    YesButton.Font = Enum.Font.GothamBold
-    YesButton.Text = "YES"
-    YesButton.TextColor3 = Color3.fromRGB(240, 240, 240)
-    YesButton.TextSize = 14
+    -- Message
+    messageLabel.Name = "Message"
+    messageLabel.Parent = frame
+    messageLabel.BackgroundTransparency = 1
+    messageLabel.Position = UDim2.new(0.1, 0, 0.25, 0)
+    messageLabel.Size = UDim2.new(0.8, 0, 0.4, 0)
+    messageLabel.Font = Enum.Font.Gotham
+    messageLabel.Text = text
+    messageLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+    messageLabel.TextSize = 14
+    messageLabel.TextWrapped = true
+    messageLabel.TextYAlignment = Enum.TextYAlignment.Top
 
-    YesCorner.CornerRadius = UDim.new(0, 8)
-    YesCorner.Parent = YesButton
+    -- Button holder
+    buttonHolder.Name = "ButtonHolder"
+    buttonHolder.Parent = frame
+    buttonHolder.BackgroundTransparency = 1
+    buttonHolder.Position = UDim2.new(0.1, 0, 0.7, 0)
+    buttonHolder.Size = UDim2.new(0.8, 0, 0, 45)
 
-    NoButton.Name = "NoButton"
-    NoButton.Parent = ButtonHolder
-    NoButton.BackgroundColor3 = Color3.fromRGB(180, 60, 60)
-    NoButton.Position = UDim2.new(0.55, 0, 0, 0)
-    NoButton.Size = UDim2.new(0.45, 0, 1, 0)
-    NoButton.Font = Enum.Font.GothamBold
-    NoButton.Text = "NO"
-    NoButton.TextColor3 = Color3.fromRGB(240, 240, 240)
-    NoButton.TextSize = 14
+    -- Yes button
+    yesButton.Name = "YesButton"
+    yesButton.Parent = buttonHolder
+    yesButton.BackgroundColor3 = Color3.fromRGB(60, 180, 60)
+    yesButton.Position = UDim2.new(0, 0, 0, 0)
+    yesButton.Size = UDim2.new(0.45, 0, 1, 0)
+    yesButton.Font = Enum.Font.GothamBold
+    yesButton.Text = "YES"
+    yesButton.TextColor3 = Color3.fromRGB(240, 240, 240)
+    yesButton.TextSize = 14
 
-    NoCorner.CornerRadius = UDim.new(0, 8)
-    NoCorner.Parent = NoButton
-    
-    local CloseButton = Instance.new("TextButton")
-    CloseButton.Name = "CloseButton"
-    CloseButton.Parent = Frame
-    CloseButton.BackgroundColor3 = Color3.fromRGB(90, 90, 110)
-    CloseButton.Position = UDim2.new(0.85, 0, 0.02, 0)
-    CloseButton.Size = UDim2.new(0.1, 0, 0, 25)
-    CloseButton.Font = Enum.Font.GothamBold
-    CloseButton.Text = "❌"
-    CloseButton.TextColor3 = Color3.fromRGB(220, 90, 90)
-    CloseButton.TextSize = 16
+    yesCorner.CornerRadius = UDim.new(0, 8)
+    yesCorner.Parent = yesButton
 
-    local CloseCorner = Instance.new("UICorner")
-    CloseCorner.CornerRadius = UDim.new(0, 6)
-    CloseCorner.Parent = CloseButton
+    -- No button
+    noButton.Name = "NoButton"
+    noButton.Parent = buttonHolder
+    noButton.BackgroundColor3 = Color3.fromRGB(180, 60, 60)
+    noButton.Position = UDim2.new(0.55, 0, 0, 0)
+    noButton.Size = UDim2.new(0.45, 0, 1, 0)
+    noButton.Font = Enum.Font.GothamBold
+    noButton.Text = "NO"
+    noButton.TextColor3 = Color3.fromRGB(240, 240, 240)
+    noButton.TextSize = 14
 
-    CloseButton.MouseButton1Click:Connect(function()
-        ScreenGui:Destroy()
-    end)
+    noCorner.CornerRadius = UDim.new(0, 8)
+    noCorner.Parent = noButton
 
-    Glow.Name = "Glow"
-    Glow.Parent = Frame
-    Glow.BackgroundTransparency = 1
-    Glow.BorderSizePixel = 0
-    Glow.Position = UDim2.new(-0.1, 0, -0.1, 0)
-    Glow.Size = UDim2.new(1.2, 0, 1.2, 0)
-    Glow.ZIndex = 1
-    Glow.Image = "rbxassetid://5028857084"
-    Glow.ImageColor3 = Color3.fromRGB(220, 90, 90)
-    Glow.ScaleType = Enum.ScaleType.Slice
-    Glow.SliceCenter = Rect.new(24, 24, 276, 276)
-    Glow.SliceScale = 0.24
-    Glow.ImageTransparency = 0.8
+    -- Glow effect
+    glow.Name = "Glow"
+    glow.Parent = frame
+    glow.BackgroundTransparency = 1
+    glow.BorderSizePixel = 0
+    glow.Position = UDim2.new(-0.1, 0, -0.1, 0)
+    glow.Size = UDim2.new(1.2, 0, 1.2, 0)
+    glow.ZIndex = 1
+    glow.Image = "rbxassetid://5028857084"
+    glow.ImageColor3 = Color3.fromRGB(220, 90, 90)
+    glow.ScaleType = Enum.ScaleType.Slice
+    glow.SliceCenter = Rect.new(24, 24, 276, 276)
+    glow.SliceScale = 0.24
+    glow.ImageTransparency = 0.8
 
-    local choice = false
-    local connection1 = YesButton.MouseButton1Click:Connect(function()
+    -- Handle user choice
+    local choice = nil
+    local connections = {}
+
+    connections[1] = yesButton.MouseButton1Click:Connect(function()
         choice = true
-        ScreenGui:Destroy()
+        screenGui:Destroy()
     end)
 
-    local connection2 = NoButton.MouseButton1Click:Connect(function()
+    connections[2] = noButton.MouseButton1Click:Connect(function()
         choice = false
-        ScreenGui:Destroy()
+        screenGui:Destroy()
     end)
 
-    while ScreenGui.Parent do
-        task.wait()
+    connections[3] = closeButton.MouseButton1Click:Connect(function()
+        choice = false
+        screenGui:Destroy()
+    end)
+
+    -- Wait for response or cleanup
+    local timeout = 0
+    while screenGui.Parent and choice == nil and timeout < 30 do
+        task.wait(0.1)
+        timeout = timeout + 0.1
     end
 
-    return choice
-end
-
-local o = loadstring(game:HttpGet("https://paste.ee/r/E9tFZ/0"))()
-function nt(n, c)
-    o:MakeNotification({
-        Name = n,
-        Content = c,
-        Image = "rbxassetid://4483345998",
-        Time = 6
-    })
-end
-local gagid = 126884695634066
-if game.PlaceId ~= gagid then
-   nt("Wrong Game", "This script is for Grow a Garden only!")
-   return
-end
-local q = (syn and syn.queue_on_teleport) or queue_on_teleport or (fluxus and fluxus.queue_on_teleport) or function() end
-local shf = [[
-    if not _G.exeonce then
-        _G.exeonce = true
-        repeat task.wait() until game:IsLoaded()
-        loadstring(game:HttpGet("https://raw.githubusercontent.com/RehanDias/server-r/refs/heads/main/SERVER-FINDER.lua", true))()
-    end
-]]
-q(shf)
-local function checkBloodMoon()
-    local shrine = workspace.Interaction.UpdateItems:FindFirstChild("BloodMoonShrine")
-    if shrine and shrine:IsA("Model") then
-        local part = shrine.PrimaryPart or shrine:FindFirstChildWhichIsA("BasePart")
-        if part then
-            return (part.Position - Vector3.new(-83.157, 0.3, -11.295)).Magnitude < 0.1
+    -- Cleanup connections
+    for _, connection in pairs(connections) do
+        if connection then
+            connection:Disconnect()
         end
     end
-    return false
+
+    if screenGui.Parent then
+        screenGui:Destroy()
+    end
+
+    return choice or false
 end
 
+-- Improved BloodMoon detection
+local function checkBloodMoon()
+    local success, result = pcall(function()
+        local shrine = workspace.Interaction.UpdateItems:FindFirstChild("BloodMoonShrine")
+        if shrine and shrine:IsA("Model") then
+            local part = shrine.PrimaryPart or shrine:FindFirstChildWhichIsA("BasePart")
+            if part then
+                return (part.Position - BLOODMOON_POSITION).Magnitude < 0.1
+            end
+        end
+        return false
+    end)
+    
+    return success and result
+end
 
-local lastHopAttempt = 0
-local function sh()
-    if os.time() - lastHopAttempt < 5 then
-        nt("Please Wait", "Server hop cooldown...")
+-- Enhanced server hopping with better error handling
+local function serverHop()
+    if os.time() - lastHopAttempt < HOP_COOLDOWN then
+        notify("Please Wait", "Server hop cooldown active...")
         return false
     end
+    
     lastHopAttempt = os.time()
 
-    local req = (syn and syn.request) or (http and http.request) or http_request or (fluxus and fluxus.request) or request
-    if not req then 
-        nt("Error", "No HTTP request function available")
+    local requestFunction = (syn and syn.request) or 
+                          (http and http.request) or 
+                          http_request or 
+                          (fluxus and fluxus.request) or 
+                          request
+
+    if not requestFunction then 
+        notify("Error", "HTTP request function not available")
         return false
     end
-    task.wait(math.random(1, 3))
 
-    local hs = game:GetService("HttpService")
-    local tp = game:GetService("TeleportService")
-    local res = req({
-        Url = "https://games.roblox.com/v1/games/"..game.PlaceId.."/servers/Public?sortOrder=Desc&limit=100&excludeFullGames=true",
-        Method = "GET"
-    })
+    notify("Searching", "Looking for available servers...")
+    task.wait(math.random(1, 2))
 
-    if res.StatusCode == 429 then
-        nt("Rate Limited", "Please wait a few minutes before trying again")
+    local success, response = pcall(function()
+        return requestFunction({
+            Url = string.format("https://games.roblox.com/v1/games/%d/servers/Public?sortOrder=Desc&limit=100&excludeFullGames=true", GAME_ID),
+            Method = "GET"
+        })
+    end)
+
+    if not success then
+        notify("Error", "Failed to fetch server list")
         return false
-    elseif res.StatusCode ~= 200 then 
-        nt("Error", "Server request failed (Code: "..res.StatusCode..")")
+    end
+
+    if response.StatusCode == 429 then
+        notify("Rate Limited", "Please wait before trying again")
+        return false
+    elseif response.StatusCode ~= 200 then 
+        notify("Error", "Server request failed (Code: " .. response.StatusCode .. ")")
         return false 
     end
 
-    local success, data = pcall(hs.JSONDecode, hs, res.Body)
-    if not success or not data or not data.data then 
-        nt("Error", "Failed to read server data")
+    local parseSuccess, data = pcall(HttpService.JSONDecode, HttpService, response.Body)
+    if not parseSuccess or not data or not data.data then 
+        notify("Error", "Failed to parse server data")
         return false
     end
 
-    local list = {}
-    for _, v in ipairs(data.data) do
-        if type(v) == "table" and v.id ~= game.JobId then
-            local playing = tonumber(v.playing) or 0
-            local max = tonumber(v.maxPlayers) or 100
-            local placeVersion = v.placeVersion or 0  -- Assuming placeVersion is available in the server data
-            if playing < max and placeVersion <= 1231 then
-                table.insert(list, v.id)
-            end
+    local validServers = {}
+    for _, server in ipairs(data.data) do
+        if type(server) == "table" and 
+           server.id ~= game.JobId and 
+           server.playing < server.maxPlayers then
+            table.insert(validServers, server.id)
         end
     end
 
-    if #list > 0 then
-        nt("Server Hop", "Teleporting to better server...")
+    if #validServers > 0 then
+        notify("Server Hop", "Teleporting to new server...")
         task.wait(0.5)
-        tp:TeleportToPlaceInstance(game.PlaceId, list[math.random(#list)])
+        
+        local teleportSuccess = pcall(function()
+            TeleportService:TeleportToPlaceInstance(GAME_ID, validServers[math.random(#validServers)])
+        end)
+        
+        if not teleportSuccess then
+            notify("Error", "Failed to teleport")
+            return false
+        end
+        
         return true
     else
-        nt("No Servers", "No available servers found")
+        notify("No Servers", "No suitable servers found")
         return false
     end
 end
 
-local v = 1233
-local isOld = game.PlaceVersion <= v
-local isBloodMoon = checkBloodMoon()
+-- Queue script for next server
+local function queueScript()
+    local queueFunction = (syn and syn.queue_on_teleport) or 
+                         queue_on_teleport or 
+                         (fluxus and fluxus.queue_on_teleport) or 
+                         function() end
+    
+    local scriptToQueue = [[
+        if not _G.scriptExecuted then
+            _G.scriptExecuted = true
+            repeat task.wait() until game:IsLoaded()
+            loadstring(game:HttpGet("https://raw.githubusercontent.com/RehanDias/server-r/refs/heads/main/SERVER-FINDER.lua", true))()
+        end
+    ]]
+    
+    queueFunction(scriptToQueue)
+end
 
+-- Wait for BloodMoon with improved monitoring
 local function waitForBloodMoon()
-    local connection = game:GetService("RunService").Heartbeat:Connect(function()
+    if isWaitingForBloodMoon then return end
+    
+    isWaitingForBloodMoon = true
+    notify("Waiting", "Monitoring for Blood Moon event...")
+    
+    local connection
+    connection = RunService.Heartbeat:Connect(function()
         if checkBloodMoon() then
             connection:Disconnect()
-            nt("BLOOD MOON", "Blood Moon event has started!")
+            isWaitingForBloodMoon = false
+            notify("BLOOD MOON!", "Blood Moon event detected!")
+            
+            -- Load main script
+            local success = pcall(function()
+                loadstring(game:HttpGet("https://paste.ee/r/msCc6gVu/0", true))()
+            end)
+            
+            if not success then
+                notify("Error", "Failed to load main script")
+            end
         end
     end)
 end
 
-if isOld and isBloodMoon then
-    nt("Perfect Server!", "Old version ("..game.PlaceVersion..") + Blood Moon active!")
-    loadstring(game:HttpGet("https://paste.ee/r/msCc6gVu/0", true))()
-elseif isOld and not isBloodMoon then
-    nt("Old Server!", "Version: "..game.PlaceVersion)
-    local e = prompt("OLD SERVER DETECTED", "This is an old server but there's no Bloodmoon. Would you like to server-hop? Click No if you want to wait for Bloodmoon!")
-    loadstring(game:HttpGet("https://paste.ee/r/msCc6gVu/0", true))()
-    if e then
-        nt("Server-hop accepted.", "Looking for another server...")
-        local success = sh()
-        if not success then
-            task.wait(5)
-            sh()
+-- Main execution logic
+local function main()
+    -- Validate game
+    if game.PlaceId ~= GAME_ID then
+        notify("Wrong Game", "This script is for Grow a Garden only!")
+        return
+    end
+
+    -- Initialize systems
+    initializeNotifications()
+    queueScript()
+
+    -- Check current server status
+    local currentVersion = game.PlaceVersion
+    local isOldVersion = currentVersion <= TARGET_VERSION
+    local hasBloodMoon = checkBloodMoon()
+
+    notify("Server Info", string.format("Version: %d | Blood Moon: %s", 
+           currentVersion, hasBloodMoon and "Active" or "Inactive"))
+
+    if isOldVersion and hasBloodMoon then
+        -- Perfect server - old version with blood moon
+        notify("Perfect Server!", "Old version + Blood Moon active!")
+        loadstring(game:HttpGet("https://paste.ee/r/msCc6gVu/0", true))()
+        
+    elseif isOldVersion and not hasBloodMoon then
+        -- Old server without blood moon
+        notify("Old Server Found", "Version: " .. currentVersion)
+        
+        local shouldHop = createPrompt("OLD SERVER DETECTED", 
+                                     "This is an old server but no Blood Moon is active. Would you like to server-hop to find one with Blood Moon, or wait here?")
+        
+        -- Load main script regardless
+        pcall(function()
+            loadstring(game:HttpGet("https://paste.ee/r/msCc6gVu/0", true))()
+        end)
+        
+        if shouldHop then
+            notify("Server Hopping", "Searching for better server...")
+            if not serverHop() then
+                task.wait(3)
+                serverHop()
+            end
+        else
+            notify("Waiting Mode", "Monitoring for Blood Moon event...")
+            waitForBloodMoon()
         end
-    else
-        nt("Server-hop declined.", "Staying to wait for Blood Moon event.")
-        waitForBloodMoon()
-    end 
-elseif isBloodMoon and not isOld then
-    local e = prompt("BLOODMOON DETECTED", "Bloodmoon event has been detected in this new server. Would you like to server-hop to find an old server with Bloodmoon?")
-    if e then
-        nt("Server-hop accepted.", "Looking for another server...")
-        local success = sh()
-        if not success then
-            task.wait(5)
-            sh()
+        
+    elseif hasBloodMoon and not isOldVersion then
+        -- New server with blood moon
+        local shouldHop = createPrompt("BLOOD MOON DETECTED", 
+                                     "Blood Moon is active in this new server. Would you like to search for an old server with Blood Moon instead?")
+        
+        if shouldHop then
+            notify("Server Hopping", "Searching for old server...")
+            if not serverHop() then
+                task.wait(3)
+                serverHop()
+            end
+        else
+            notify("Staying", "Using current server for Blood Moon event")
+            pcall(function()
+                loadstring(game:HttpGet("https://paste.ee/r/msCc6gVu/0", true))()
+            end)
         end
+        
     else
-        nt("Server-hop declined.", "Staying for Blood Moon event.")
-    end 
-else
-    nt("New Server Detected!", "Version: " .. game.PlaceVersion)
-    task.wait(0.5)
-    nt("Searching...", "Looking for an old server...")
-    local success = sh()
-    if not success then
-        task.wait(5)
-        sh()
+        -- New server without blood moon
+        notify("New Server", "Version: " .. currentVersion .. " - Searching for old server...")
+        task.wait(1)
+        
+        if not serverHop() then
+            task.wait(5)
+            if not serverHop() then
+                notify("Fallback", "Staying in current server and waiting for Blood Moon")
+                waitForBloodMoon()
+            end
+        end
+    end
+end
+
+-- Execute main function with error handling
+local success, error = pcall(main)
+if not success then
+    warn("Script execution failed:", error)
+    if notificationSystem then
+        notify("Script Error", "Execution failed - check console for details")
     end
 end
