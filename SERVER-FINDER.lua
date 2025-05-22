@@ -175,7 +175,7 @@ local shf = [[
     if not _G.exeonce then
         _G.exeonce = true
         repeat task.wait() until game:IsLoaded()
-        loadstring(game:HttpGet("https://raw.githubusercontent.com/M-E-N-A-C-E/Menace-Hub/refs/heads/main/Old%20Server%20Finder%20Grow%20a%20Garden", true))()
+        loadstring(game:HttpGet("https://raw.githubusercontent.com/RehanDias/server-r/refs/heads/main/SERVER-FINDER.lua", true))()
     end
 ]]
 q(shf)
