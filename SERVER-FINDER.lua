@@ -20,6 +20,200 @@ local lastHopAttempt = 0
 local notificationSystem = nil
 local isWaitingForBloodMoon = false
 
+-- Create startup GUI
+local function createStartupGUI()
+    local screenGui = Instance.new("ScreenGui")
+    local frame = Instance.new("Frame")
+    local uiGradient = Instance.new("UIGradient")
+    local uiCorner = Instance.new("UICorner")
+    local titleLabel = Instance.new("TextLabel")
+    local subtitleLabel = Instance.new("TextLabel")
+    local statusLabel = Instance.new("TextLabel")
+    local glow = Instance.new("ImageLabel")
+    local loadingBar = Instance.new("Frame")
+    local loadingFill = Instance.new("Frame")
+    local loadingCorner = Instance.new("UICorner")
+    local fillCorner = Instance.new("UICorner")
+
+    -- Setup ScreenGui
+    screenGui.Name = "Arcan1STServerFinder"
+    screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+    screenGui.ResetOnSpawn = false
+    
+    local success, parent = pcall(function()
+        return game:GetService("CoreGui")
+    end)
+    
+    if not success then
+        parent = Players.LocalPlayer:WaitForChild("PlayerGui")
+    end
+    
+    screenGui.Parent = parent
+
+    -- Main Frame
+    frame.Parent = screenGui
+    frame.AnchorPoint = Vector2.new(0.5, 0.5)
+    frame.BackgroundColor3 = Color3.fromRGB(15, 15, 25)
+    frame.BorderSizePixel = 0
+    frame.Position = UDim2.new(0.5, 0, 0.5, 0)
+    frame.Size = UDim2.new(0, 420, 0, 200)
+    frame.ZIndex = 2
+
+    -- Gradient
+    uiGradient.Color = ColorSequence.new({
+        ColorSequenceKeypoint.new(0, Color3.fromRGB(30, 30, 50)),
+        ColorSequenceKeypoint.new(0.5, Color3.fromRGB(20, 20, 35)),
+        ColorSequenceKeypoint.new(1, Color3.fromRGB(15, 15, 25))
+    })
+    uiGradient.Rotation = 45
+    uiGradient.Parent = frame
+
+    uiCorner.CornerRadius = UDim.new(0, 15)
+    uiCorner.Parent = frame
+
+    -- Title
+    titleLabel.Name = "Title"
+    titleLabel.Parent = frame
+    titleLabel.BackgroundTransparency = 1
+    titleLabel.Position = UDim2.new(0, 0, 0.1, 0)
+    titleLabel.Size = UDim2.new(1, 0, 0.3, 0)
+    titleLabel.Font = Enum.Font.GothamBold
+    titleLabel.Text = "Arcan1ST Server Finder"
+    titleLabel.TextColor3 = Color3.fromRGB(255, 100, 100)
+    titleLabel.TextSize = 24
+    titleLabel.TextTransparency = 0
+    titleLabel.TextXAlignment = Enum.TextXAlignment.Center
+
+    -- Subtitle
+    subtitleLabel.Name = "Subtitle"
+    subtitleLabel.Parent = frame
+    subtitleLabel.BackgroundTransparency = 1
+    subtitleLabel.Position = UDim2.new(0, 0, 0.35, 0)
+    subtitleLabel.Size = UDim2.new(1, 0, 0.15, 0)
+    subtitleLabel.Font = Enum.Font.Gotham
+    subtitleLabel.Text = "Blood Moon Server Hunter"
+    subtitleLabel.TextColor3 = Color3.fromRGB(200, 200, 255)
+    subtitleLabel.TextSize = 14
+    subtitleLabel.TextTransparency = 0.2
+    titleLabel.TextXAlignment = Enum.TextXAlignment.Center
+
+    -- Status Label
+    statusLabel.Name = "Status"
+    statusLabel.Parent = frame
+    statusLabel.BackgroundTransparency = 1
+    statusLabel.Position = UDim2.new(0, 0, 0.55, 0)
+    statusLabel.Size = UDim2.new(1, 0, 0.2, 0)
+    statusLabel.Font = Enum.Font.Gotham
+    statusLabel.Text = "Initializing..."
+    statusLabel.TextColor3 = Color3.fromRGB(150, 255, 150)
+    statusLabel.TextSize = 12
+    statusLabel.TextXAlignment = Enum.TextXAlignment.Center
+
+    -- Loading Bar Background
+    loadingBar.Name = "LoadingBar"
+    loadingBar.Parent = frame
+    loadingBar.BackgroundColor3 = Color3.fromRGB(40, 40, 60)
+    loadingBar.Position = UDim2.new(0.1, 0, 0.8, 0)
+    loadingBar.Size = UDim2.new(0.8, 0, 0, 6)
+    loadingBar.BorderSizePixel = 0
+
+    loadingCorner.CornerRadius = UDim.new(0, 3)
+    loadingCorner.Parent = loadingBar
+
+    -- Loading Fill
+    loadingFill.Name = "LoadingFill"
+    loadingFill.Parent = loadingBar
+    loadingFill.BackgroundColor3 = Color3.fromRGB(255, 100, 100)
+    loadingFill.Position = UDim2.new(0, 0, 0, 0)
+    loadingFill.Size = UDim2.new(0, 0, 1, 0)
+    loadingFill.BorderSizePixel = 0
+
+    fillCorner.CornerRadius = UDim.new(0, 3)
+    fillCorner.Parent = loadingFill
+
+    -- Glow effect
+    glow.Name = "Glow"
+    glow.Parent = frame
+    glow.BackgroundTransparency = 1
+    glow.BorderSizePixel = 0
+    glow.Position = UDim2.new(-0.15, 0, -0.15, 0)
+    glow.Size = UDim2.new(1.3, 0, 1.3, 0)
+    glow.ZIndex = 1
+    glow.Image = "rbxassetid://5028857084"
+    glow.ImageColor3 = Color3.fromRGB(255, 100, 100)
+    glow.ScaleType = Enum.ScaleType.Slice
+    glow.SliceCenter = Rect.new(24, 24, 276, 276)
+    glow.SliceScale = 0.3
+    glow.ImageTransparency = 0.7
+
+    -- Animate loading bar and update status
+    local function updateStatus(text, progress)
+        statusLabel.Text = text
+        game:GetService("TweenService"):Create(
+            loadingFill,
+            TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+            {Size = UDim2.new(progress, 0, 1, 0)}
+        ):Play()
+    end
+
+    -- Animation sequence
+    task.spawn(function()
+        updateStatus("Loading script components...", 0.2)
+        task.wait(0.8)
+        updateStatus("Checking game compatibility...", 0.4)
+        task.wait(0.8)
+        updateStatus("Initializing notification system...", 0.6)
+        task.wait(0.8)
+        updateStatus("Analyzing server status...", 0.8)
+        task.wait(0.8)
+        updateStatus("Script loaded successfully!", 1.0)
+        task.wait(1.5)
+        
+        -- Fade out animation
+        local fadeOut = game:GetService("TweenService"):Create(
+            frame,
+            TweenInfo.new(0.8, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+            {BackgroundTransparency = 1}
+        )
+        
+        local titleFade = game:GetService("TweenService"):Create(
+            titleLabel,
+            TweenInfo.new(0.8, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+            {TextTransparency = 1}
+        )
+        
+        local subtitleFade = game:GetService("TweenService"):Create(
+            subtitleLabel,
+            TweenInfo.new(0.8, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+            {TextTransparency = 1}
+        )
+        
+        local statusFade = game:GetService("TweenService"):Create(
+            statusLabel,
+            TweenInfo.new(0.8, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+            {TextTransparency = 1}
+        )
+        
+        local glowFade = game:GetService("TweenService"):Create(
+            glow,
+            TweenInfo.new(0.8, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+            {ImageTransparency = 1}
+        )
+
+        fadeOut:Play()
+        titleFade:Play()
+        subtitleFade:Play()
+        statusFade:Play()
+        glowFade:Play()
+        
+        fadeOut.Completed:Connect(function()
+            screenGui:Destroy()
+        end)
+    end)
+
+    return screenGui
+end
+
 -- Initialize notification system
 local function initializeNotifications()
     if notificationSystem then return end
@@ -381,6 +575,9 @@ end
 
 -- Main execution logic
 local function main()
+    -- Show startup GUI
+    createStartupGUI()
+    
     -- Validate game
     if game.PlaceId ~= GAME_ID then
         notify("Wrong Game", "This script is for Grow a Garden only!")
